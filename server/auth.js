@@ -231,11 +231,12 @@ async function handleRequest(request) {
       await KV_AUTH.put('_' + uid, providerId);
     }
     const sessionObject = {
+      uid,
+      username,
+      provider: state.provider,
       iat: Date.now(),
       ttl: state.rememberMe ? SESSION_TTL : '',
-      provider: state.provider,
-      providerId,
-      username
+      providerId
     };
     const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
     delete sessionObject.providerId;
