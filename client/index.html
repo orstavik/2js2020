@@ -1,0 +1,57 @@
+<link rel='stylesheet' href='test.css'>
+<script src='test.js'></script>
+<h1>hello sunshine weekend worker and encryption</h1>
+RememberMe: <input type='checkbox' /><br>
+<a popup href="https://auth.2js.no/login/google">login google</a><br>
+<a popup href="https://auth.2js.no/login/github">login github</a><br>
+
+<a href="https://db.2js.no/SESSION">show sessionData</a>
+
+<script>
+
+  let loginWindow;
+  let loginWindowUrl;
+  const popupOrigin = 'auth.2js.no';
+
+  //function childUnloadsOnMe(){
+  //  loginWindow.closed && console.log('the popup window closed');
+  //}
+
+  function receiveLoginData(e){
+    debugger
+    if (e.origin !== popupOrigin || e.source !== loginWindow)
+      return;
+    const div = document.createElement('div');
+    div.innerText = e.data;
+    document.body.appendChild(div);
+  }
+
+  window.addEventListener('message', receiveLoginData);
+  
+  for (let link of document.querySelectorAll("a[popup]"))
+    link.addEventListener('click', openRequestedSinglePopup);
+
+  function popupParameters() {
+    const width = Math.min(600, window.screen.width);
+    const height = Math.min(600, window.screen.height);
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    return "resizable,scrollbars,status,opener," +
+      Object.entries({width, height, left, top}).map(kv => kv.join('=')).join(',');
+  }
+
+  function openRequestedSinglePopup(event) {
+    event.preventDefault();
+    let url = event.currentTarget.href;
+    if(document.querySelector('input').checked) 
+      url+='/rememberMe';
+    if (!loginWindow || loginWindow.closed){
+      loginWindow = window.open(url, "_blank", popupParameters());
+//      loginWindow.onunload = unloadOnMe;//alternative approach to using postMessage. This will require an extra roundtrip to the server
+    }
+    else if (loginWindowUrl !== url)
+      loginWindow.location = url;
+    loginWindowUrl = url;
+    loginWindow.focus();
+  }
+</script>
