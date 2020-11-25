@@ -238,7 +238,8 @@ async function handleRequest(request) {
       username
     };
     const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
-    return new Response(`<script>window.opener.postMessage('logged in', 'https://${SESSION_ROOT}'); window.close();</script>`, {
+    delete sessionObject.providerId;
+    return new Response(`<script>window.opener.postMessage('${JSON.stringify(sessionObject)}', 'https://${SESSION_ROOT}'); window.close();</script>`, {
       status: 200,
       headers: {
         'content-type': 'text/html',
