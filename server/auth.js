@@ -18,22 +18,6 @@
 //   GITHUB_REDIRECT
 //   COUNTER_DOMAIN
 //   COUNTER_KEY
-const loginPageRawPromise = fetch(SESSION_ROOT + '/login.html');
-const logoutPageRawPromise = fetch(SESSION_ROOT + '/logout.html');
-
-class ServerDataInjector {
-  constructor(script) {
-    this.script = `<script>${script}</script>`;
-  }
-
-  element(head) {
-    head.prepend(this.script, {html: true});
-  }
-}
-
-const script = `window.serverData = ${JSON.stringify({SESSION_ROOT})};`;
-const logoutPagePromise = new ServerDataInjector(script).on('head').transform(logoutPageRawPromise);
-
 let cachedPassHash;
 
 //imported pure functions begins
