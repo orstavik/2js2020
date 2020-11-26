@@ -43,7 +43,7 @@ RememberMe: <input type='checkbox' /><br>
     event.preventDefault();
     let url = event.currentTarget.href;
     if(document.querySelector('input').checked) 
-      url+='/rememberMe';
+      url+='?remember-me';
     if (!loginWindow || loginWindow.closed){
       loginWindow = window.open(url, "_blank", popupParameters());
 //      loginWindow.onunload = unloadOnMe;//alternative approach to using postMessage. This will require an extra roundtrip to the server

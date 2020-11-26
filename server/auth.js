@@ -107,8 +107,8 @@ function checkTTL(iat, ttl) {
 //imported pure functions ends
 
 //imported authentication functions
-function redirect(path, params) {
-  return Response.redirect(path + '?' + Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&'));
+function redirectUrl(path, params) {
+  return path + '?' + Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
 }
 
 async function fetchAccessToken(path, data) {
@@ -156,7 +156,7 @@ async function githubProcessTokenPackage(code, state) {
     }
   });
   const userData = await user.json();
-  return ['gi' + userData.id, 'github.com/' + userData.name];
+  return ['gi' + userData.id, 'github.com/' + userData.login];
 }
 
 //imported authentication functions ends
@@ -186,18 +186,18 @@ async function login(provider, url) {
   const state = await encryptData(JSON.stringify({
     iat: Date.now(),
     ttl: STATE_PARAM_TTL,
-    rm: url.searchParams.get('remember-me'),
     provider: provider
   }), SECRET);
+  url.searchParams.get('remember-me') !== null && (state.rm = true);
   if (provider === 'github')
-    return redirect(GITHUB_OAUTH_LINK, {
+    return redirectUrl(GITHUB_OAUTH_LINK, {
       state,
       client_id: GITHUB_CLIENTID,
       redirect_url: GITHUB_REDIRECT,
       scope: 'user'
     });
   if (provider === 'google')
-    return redirect(GOOGLE_OAUTH_LINK, {
+    return redirectUrl(GOOGLE_OAUTH_LINK, {
       state,
       nonce: randomString(12),
       client_id: GOOGLE_CLIENTID,
@@ -224,7 +224,7 @@ async function callback(url, provider) {
   console.log(state.provider, provider)
   let providerId, username;
   if (state.provider === provider && provider === 'github')
-    [providerId, username] = 'gi' + await githubProcessTokenPackage(code, state); //userText is the github id nr.
+    [providerId, username] = await githubProcessTokenPackage(code, state); //userText is the github id nr.
   else if (state.provider === provider && provider === 'google')
     [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
   else
@@ -234,47 +234,22 @@ async function callback(url, provider) {
 
 async function handleRequest(request) {
   try {
-
     const url = new URL(request.url);
-    const [ignore, action, data] = url.pathname.split('/');
+    const [ignore, action, provider] = url.pathname.split('/');
 
     if (action === 'login')
-      return await login(data, url);
+      //todo pass in remember-me.
+      return Response.redirect(await login(provider, url));
 
     if (action === 'callback') {
-      const [providerId, username, rm] = await callback(url, data);
-      //todo callback(
-      // let state;
-      // try {
-      //   const stateSecret = url.searchParams.get('state');
-      //   const stateTxt = await decryptData(stateSecret, SECRET);
-      //
-      //   state = JSON.parse(stateTxt);
-      //   if (!state && !checkTTL(state.iat, state.ttl))
-      //     return new Response('Login session timed out.', {status: 401});
-      // } catch (err) {
-      //   throw 'callback without ILLEGAL stateSecret';
-      // }
-      // const code = url.searchParams.get('code');
-      // console.log(state.provider, data)
-      // let providerId, username;
-      // if (state.provider === data && data === 'github')
-      //   [providerId, username] = 'gi' + await githubProcessTokenPackage(code, state); //userText is the github id nr.
-      // else if (state.provider === data && data === 'google')
-      //   [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
-      // else
-      //   throw 'provider name is messed up';
-      //todo callback(
-
+      //todo pass in state and code.
+      const [providerId, username, rm] = await callback(url, provider);
       const uid = await getOrSetUid(providerId);
-
-      //todo makeSessionObject(
       const iat = Date.now();
-      const ttl = rm ? SESSION_TTL : '';
-      const sessionObject = {uid, username, provider: data, iat, ttl, providerId, v: 12};
+      const ttl = rm === '' ? '' : SESSION_TTL;
+      const sessionObject = {uid, username, provider, iat, ttl, providerId, v: 18};
       const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
       delete sessionObject.providerId;
-      //todo makeSessionObject(
 
       const loginText = `<script>window.opener.postMessage('${JSON.stringify(sessionObject)}', 'https://${SESSION_ROOT}'); window.close();</script>`;
       return new Response(loginText, {
@@ -295,7 +270,7 @@ async function handleRequest(request) {
         }
       });
     }
-    return new Response('nothing to see', {status: 401});
+    throw `wrong action: ${action} in ${url.pathname}`;
   } catch (err) {
     return new Response(err.message, {status: 401});
   }
