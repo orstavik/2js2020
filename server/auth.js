@@ -1,3 +1,4 @@
+
 // _globals
 //   SECRET
 //   SESSION_ROOT
@@ -18,7 +19,6 @@
 //   GITHUB_REDIRECT
 //   COUNTER_DOMAIN
 //   COUNTER_KEY
-let cachedPassHash;
 
 //imported pure functions begins
 function randomString(length) {
@@ -57,6 +57,8 @@ function fromBase64url(base64urlStr) {
     return base64urlStr + '=';
   return base64urlStr;
 }
+
+let cachedPassHash;
 
 async function passHash(pw) {
   return cachedPassHash || (cachedPassHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw)));
