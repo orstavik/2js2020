@@ -24,8 +24,8 @@
   </div>
   <div id="logout">
     <pre></pre>
-    <a href="https://auth.2js.no/logout">logout</a><br>
-    <a href="https://db.2js.no/SESSION">see the data stored in a cookie on my computer</a>
+    <a popup href="https://auth.2js.no/logout">logout</a><br>
+    <a popup href="https://db.2js.no/SESSION">see the data stored in a cookie on my computer</a>
   </div>
 </div>
 
@@ -35,20 +35,16 @@
   let loginWindowUrl;
   const popupOrigin = 'https://auth.2js.no';
 
-  //function childUnloadsOnMe(){
-  //  loginWindow.closed && console.log('the popup window closed');
-  //}
-
   function receiveLoginData(e) {
-    if (e.origin !== popupOrigin || e.source !== loginWindow)
+    if (e.origin !== popupOrigin || e.source !== loginWindow)            //todo do we need popupOrigin??
       return;
     debugger
     const userEl = document.querySelector('#userData');
-    userEl.setAttribute('active', 'loggedIn');
     userEl.querySelector('div#logout > pre').innerText = e.data;
-    // const div = document.createElement('div');
-    // div.innerText = e.data;
-    // document.body.appendChild(div);
+    e.data ? userEl.setAttribute('active', 'loggedIn') : userEl.removeAttribute('active');
+    debugger
+    if(!e.data)
+      location = location.href;
   }
 
   window.addEventListener('message', receiveLoginData);

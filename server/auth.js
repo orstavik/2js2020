@@ -18,6 +18,21 @@
 //   GITHUB_REDIRECT
 //   COUNTER_DOMAIN
 //   COUNTER_KEY
+const loginPageRawPromise = fetch(SESSION_ROOT + '/login.html');
+const logoutPageRawPromise = fetch(SESSION_ROOT + '/logout.html');
+
+class ServerDataInjector {
+  constructor(script) {
+    this.script = `<script>${script}</script>`;
+  }
+
+  element(head) {
+    head.prepend(this.script, {html: true});
+  }
+}
+
+const script = `window.serverData = ${JSON.stringify({SESSION_ROOT})};`;
+const logoutPagePromise = new ServerDataInjector(script).on('head').transform(logoutPageRawPromise);
 
 let cachedPassHash;
 
@@ -34,7 +49,7 @@ function getCookieValue(cookie, key) {
 function bakeCookie(name, value, domain, ttl) {
   let cookie = `${name}=${value}; HttpOnly; Secure; SameSite=Strict; Path=/; Domain=${domain};`;
   if (ttl !== '')
-    cookie += 'Max-age=' + ttl +';';
+    cookie += 'Max-age=' + ttl + ';';
   return cookie;
 }
 
@@ -214,6 +229,13 @@ async function processCallback(state, code, provider) {
     return await googleProcessTokenPackage(code);
 }
 
+function selfClosingMessage(msg, domain) {
+  return `<script>
+  window.opener.postMessage('${msg}', 'https://${domain}'); 
+  window.close();
+</script>`;
+}
+
 async function handleRequest(request) {
   try {
     const url = new URL(request.url);
@@ -252,24 +274,14 @@ async function handleRequest(request) {
       const sessionObject = {uid, username, provider, iat, ttl, v: 27};
       const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
 
-      const loginText = `<script>window.opener.postMessage('${JSON.stringify(sessionObject)}', 'https://${SESSION_ROOT}'); window.close();</script>`;
-      return new Response(loginText, {
-        status: 200,
-        headers: {
-          'content-type': 'text/html',
-          'Set-Cookie': bakeCookie(SESSION_COOKIE_NAME, sessionSecret, SESSION_ROOT, sessionObject.ttl)
-        }
-      });
+      const txtIn = selfClosingMessage(JSON.stringify(sessionObject), SESSION_ROOT);
+      const cookieIn = bakeCookie(SESSION_COOKIE_NAME, sessionSecret, SESSION_ROOT, sessionObject.ttl);
+      return new Response(txtIn, {status: 200, headers: {'content-type': 'text/html', 'Set-Cookie': cookieIn}});
     }
     if (action === 'logout') {
-      const logoutText = `<h3>You have logged out.</h3><script>setTimeout(()=>window.open('https://${SESSION_ROOT}'), 3000)</script>`;
-      return new Response(logoutText, {
-        status: 200,
-        headers: {
-          'content-type': 'text/html',
-          'Set-Cookie': bakeCookie(SESSION_COOKIE_NAME, 'LoggingOut', SESSION_ROOT, 0)
-        }
-      });
+      const txtOut = selfClosingMessage('', SESSION_ROOT);
+      const cookieOut = bakeCookie(SESSION_COOKIE_NAME, 'LoggingOut', SESSION_ROOT, 0);
+      return new Response(txtOut, {status: 200, headers: {'content-type': 'text/html', 'Set-Cookie': cookieOut}});
     }
     throw `wrong action: ${action} in ${url.pathname}`;
   } catch (err) {
