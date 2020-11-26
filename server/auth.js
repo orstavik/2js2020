@@ -34,7 +34,7 @@ function getCookieValue(cookie, key) {
 function bakeCookie(name, value, domain, ttl) {
   let cookie = `${name}=${value}; HttpOnly; Secure; SameSite=Strict; Path=/; Domain=${domain};`;
   if (ttl !== '')
-    cookie += 'Max-age=' + ttl;
+    cookie += 'Max-age=' + ttl +';';
   return cookie;
 }
 
