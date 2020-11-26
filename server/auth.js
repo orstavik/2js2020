@@ -103,9 +103,10 @@ async function decryptData(data, password) {
 
 function checkTTL(iat, ttl) {
   const now = Date.now();
-  const stillTimeToLive = now < iat + ttl;
-  const notAFutureDream = iat < now;
-  return stillTimeToLive && notAFutureDream;
+  if (iat > now)
+    throw 'BAD: iat issued in the future';
+  if (now > iat + ttl)
+    throw 'timed out';
 }
 
 //imported pure functions ends
@@ -207,17 +208,15 @@ async function login(provider, stateSecret) {
 }
 
 async function callback(stateSecret, code, provider) {
-  let state = JSON.parse(await decryptData(stateSecret, SECRET));
-  if (!checkTTL(state.iat, state.ttl))
-    return new Response('Login session timed out.', {status: 401});
-  console.log(state.provider, provider)
+  const state = JSON.parse(await decryptData(stateSecret, SECRET));
+  checkTTL(state.iat, state.ttl);
+  if (state.provider !== provider)
+    throw 'BAD: valid stateSecret but unknown provider?';
   let providerId, username;
-  if (state.provider === provider && provider === 'github')
+  if (provider === 'github')
     [providerId, username] = await githubProcessTokenPackage(code, state); //userText is the github id nr.
-  else if (state.provider === provider && provider === 'google')
+  else if (provider === 'google')
     [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
-  else
-    throw 'provider name is messed up';
   return [providerId, username, state.rm];
 }
 
@@ -243,7 +242,7 @@ async function handleRequest(request) {
       const uid = await getOrSetUid(providerId);
       const iat = Date.now();
       const ttl = rm === '' ? '' : SESSION_TTL;
-      const sessionObject = {uid, username, provider, iat, ttl, providerId, v: 23};
+      const sessionObject = {uid, username, provider, iat, ttl, providerId, v: 24};
       const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
       delete sessionObject.providerId;
 
