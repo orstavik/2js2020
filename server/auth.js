@@ -182,30 +182,24 @@ async function getOrSetUid(providerId) {
   return newUid;
 }
 
-async function login(provider, rm ) {
-  const state = await encryptData(JSON.stringify({
-    iat: Date.now(),
-    ttl: STATE_PARAM_TTL,
-    provider: provider
-  }), SECRET);
-  rm && (state.rm = true);
+async function login(provider, stateSecret ) {
   if (provider === 'github')
     return redirectUrl(GITHUB_OAUTH_LINK, {
-      state,
+      state: stateSecret,
       client_id: GITHUB_CLIENTID,
       redirect_url: GITHUB_REDIRECT,
       scope: 'user'
     });
   if (provider === 'google')
     return redirectUrl(GOOGLE_OAUTH_LINK, {
-      state,
+      state: stateSecret,
       nonce: randomString(12),
       client_id: GOOGLE_CLIENTID,
       redirect_uri: GOOGLE_REDIRECT,
       scope: 'openid email',
       response_type: 'code',
     });
-  throw 'Login with correct provider: ' + provider;
+  throw 'Incorrect provider: ' + provider;
 }
 
 async function callback(stateSecret, code, provider) {
@@ -236,19 +230,23 @@ async function handleRequest(request) {
     const [ignore, action, provider] = url.pathname.split('/');
 
     if (action === 'login'){
-      const rm = url.searchParams.get('remember-me') !== null;
-      return Response.redirect(await login(provider, rm));
+      const stateSecret = await encryptData(JSON.stringify({
+        iat: Date.now(),
+        ttl: STATE_PARAM_TTL,
+        provider: provider,
+        rm: url.searchParams.get('remember-me') !== null
+      }), SECRET);
+      return Response.redirect(await login(provider, stateSecret));
     }
 
     if (action === 'callback') {
-      //todo pass in state and code.
       const stateSecret = url.searchParams.get('state');
       const code = url.searchParams.get('code');
       const [providerId, username, rm] = await callback(stateSecret, code, provider);
       const uid = await getOrSetUid(providerId);
       const iat = Date.now();
       const ttl = rm === '' ? '' : SESSION_TTL;
-      const sessionObject = {uid, username, provider, iat, ttl, providerId, v: 20};
+      const sessionObject = {uid, username, provider, iat, ttl, providerId, v: 21};
       const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
       delete sessionObject.providerId;
 
