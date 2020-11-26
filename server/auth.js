@@ -159,6 +159,8 @@ async function githubProcessTokenPackage(code, state) {
   return ['gi' + userData.id, 'github.com/' + userData.name];
 }
 
+//imported authentication functions ends
+
 //imported counter
 const hitCounter = `https://api.countapi.xyz/hit/${SESSION_ROOT}/${COUNTER_KEY}`;
 
@@ -170,13 +172,22 @@ async function count() {
 
 //imported counter ends
 
-//imported authentication functions ends
+async function getOrSetUid(providerId) {
+  const oldUid = await KV_AUTH.get(providerId);
+  if (oldUid)
+    return oldUid;
+  const newUid = (await count()).toString(36);
+  await KV_AUTH.put(providerId, newUid);
+  await KV_AUTH.put('_' + newUid, providerId);
+  return newUid;
+}
 
 async function handleRequest(request) {
   const url = new URL(request.url);
   const [ignore, action, data] = url.pathname.split('/');
 
   if (action === 'login') {
+    //todo login(
     const rm = url.searchParams.get('remember-me');
     const state = await encryptData(JSON.stringify({
       iat: Date.now(),
@@ -201,9 +212,11 @@ async function handleRequest(request) {
         response_type: 'code',
       });
     throw 'Login with correct provider: ' + data;
+    //todo login(
   }
 
   if (action === 'callback') {
+    //todo callback(
     let state;
     try {
       const stateSecret = url.searchParams.get('state');
@@ -224,23 +237,22 @@ async function handleRequest(request) {
       [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
     else
       throw 'provider name is messed up';
-    let uid = await KV_AUTH.get(providerId);
-    if (!uid) {
-      uid = (await count()).toString(36);
-      await KV_AUTH.put(providerId, uid);
-      await KV_AUTH.put('_' + uid, providerId);
-    }
-    const sessionObject = {
-      uid,
-      username,
-      provider: state.provider,
-      iat: Date.now(),
-      ttl: state.rememberMe ? SESSION_TTL : '',
-      providerId
-    };
+    //todo callback(
+
+    //todo uid(
+    let uid = await getOrSetUid(providerId);
+    //todo uid(
+
+    //todo makeSessionObject(
+    const iat = Date.now();
+    const ttl = state.rememberMe ? SESSION_TTL : '';
+    const sessionObject = {uid, username, provider: state.provider, iat, ttl, providerId, v: 8};
     const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
     delete sessionObject.providerId;
-    return new Response(`<script>window.opener.postMessage('${JSON.stringify(sessionObject)}', 'https://${SESSION_ROOT}'); window.close();</script>`, {
+    //todo makeSessionObject(
+
+    const loginText = `<script>window.opener.postMessage('${JSON.stringify(sessionObject)}', 'https://${SESSION_ROOT}'); window.close();</script>`;
+    return new Response(loginText, {
       status: 200,
       headers: {
         'content-type': 'text/html',
@@ -249,7 +261,8 @@ async function handleRequest(request) {
     });
   }
   if (action === 'logout') {
-    return new Response(`<h3>You have logged out.</h3><script>setTimeout(()=>window.open('https://${SESSION_ROOT}'))</script>`, {
+    const logoutText = `<h3>You have logged out.</h3><script>setTimeout(()=>window.open('https://${SESSION_ROOT}'), 3000)</script>`;
+    return new Response(logoutText, {
       status: 200,
       headers: {
         'content-type': 'text/html',
