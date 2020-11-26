@@ -207,17 +207,11 @@ async function login(provider, stateSecret) {
   throw 'login error: incorrect provider: ' + provider;
 }
 
-async function callback(stateSecret, code, provider) {
-  const state = JSON.parse(await decryptData(stateSecret, SECRET));
-  checkTTL(state.iat, state.ttl);
-  if (state.provider !== provider)
-    throw 'BAD: valid stateSecret but unknown provider?';
-  let providerId, username;
+async function processCallback(state, code, provider) {
   if (provider === 'github')
-    [providerId, username] = await githubProcessTokenPackage(code, state); //userText is the github id nr.
-  else if (provider === 'google')
-    [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
-  return [providerId, username, state.rm];
+    return await githubProcessTokenPackage(code, state);
+  if (provider === 'google')
+    return await googleProcessTokenPackage(code);
 }
 
 async function handleRequest(request) {
@@ -226,25 +220,37 @@ async function handleRequest(request) {
     const [ignore, action, provider] = url.pathname.split('/');
 
     if (action === 'login') {
+      //1. make state secret
       const stateSecret = await encryptData(JSON.stringify({
         iat: Date.now(),
         ttl: STATE_PARAM_TTL,
         provider: provider,
-        rm: url.searchParams.get('remember-me') !== null
+        rm: url.searchParams.get('remember-me')
       }), SECRET);
+      //2. redirect to openid provider using state secret
       return Response.redirect(await login(provider, stateSecret));
     }
 
     if (action === 'callback') {
+      //1. decrypt and verify state secret
       const stateSecret = url.searchParams.get('state');
+      const state = JSON.parse(await decryptData(stateSecret, SECRET));
+      checkTTL(state.iat, state.ttl);
+      if (state.provider !== provider)
+        throw 'BAD: valid stateSecret but unknown provider?';
+
+      //2. process callback using code and state
       const code = url.searchParams.get('code');
-      const [providerId, username, rm] = await callback(stateSecret, code, provider);
+      const [providerId, username] = await processCallback(stateSecret, code, provider);
+
+      //3. get the uid for the providerId
       const uid = await getOrSetUid(providerId);
+
+      //4. make the session secret and session object
       const iat = Date.now();
-      const ttl = rm === '' ? '' : SESSION_TTL;
-      const sessionObject = {uid, username, provider, iat, ttl, providerId, v: 24};
+      const ttl = state.rm === null ? null : SESSION_TTL;
+      const sessionObject = {uid, username, provider, iat, ttl, v: 27};
       const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
-      delete sessionObject.providerId;
 
       const loginText = `<script>window.opener.postMessage('${JSON.stringify(sessionObject)}', 'https://${SESSION_ROOT}'); window.close();</script>`;
       return new Response(loginText, {
