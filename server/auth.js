@@ -182,95 +182,100 @@ async function getOrSetUid(providerId) {
   return newUid;
 }
 
+async function login(provider, url) {
+  const state = await encryptData(JSON.stringify({
+    iat: Date.now(),
+    ttl: STATE_PARAM_TTL,
+    rm: url.searchParams.get('remember-me'),
+    provider: provider
+  }), SECRET);
+  if (provider === 'github')
+    return redirect(GITHUB_OAUTH_LINK, {
+      state,
+      client_id: GITHUB_CLIENTID,
+      redirect_url: GITHUB_REDIRECT,
+      scope: 'user'
+    });
+  if (provider === 'google')
+    return redirect(GOOGLE_OAUTH_LINK, {
+      state,
+      nonce: randomString(12),
+      client_id: GOOGLE_CLIENTID,
+      redirect_uri: GOOGLE_REDIRECT,
+      scope: 'openid email',
+      response_type: 'code',
+    });
+  throw 'Login with correct provider: ' + provider;
+}
+
 async function handleRequest(request) {
-  const url = new URL(request.url);
-  const [ignore, action, data] = url.pathname.split('/');
+  try {
 
-  if (action === 'login') {
-    //todo login(
-    const rm = url.searchParams.get('remember-me');
-    const state = await encryptData(JSON.stringify({
-      iat: Date.now(),
-      ttl: STATE_PARAM_TTL,
-      rm,
-      provider: data
-    }), SECRET);
-    if (data === 'github')
-      return redirect(GITHUB_OAUTH_LINK, {
-        state,
-        client_id: GITHUB_CLIENTID,
-        redirect_url: GITHUB_REDIRECT,
-        scope: 'user'
+    const url = new URL(request.url);
+    const [ignore, action, data] = url.pathname.split('/');
+
+    if (action === 'login')
+      return await login(data, url);
+
+    if (action === 'callback') {
+      //todo callback(
+      let state;
+      try {
+        const stateSecret = url.searchParams.get('state');
+        const stateTxt = await decryptData(stateSecret, SECRET);
+
+        state = JSON.parse(stateTxt);
+        if (!state && !checkTTL(state.iat, state.ttl))
+          return new Response('Login session timed out.', {status: 401});
+      } catch (err) {
+        throw 'callback without ILLEGAL stateSecret';
+      }
+      const code = url.searchParams.get('code');
+      console.log(state.provider, data)
+      let providerId, username;
+      if (state.provider === data && data === 'github')
+        [providerId, username] = 'gi' + await githubProcessTokenPackage(code, state); //userText is the github id nr.
+      else if (state.provider === data && data === 'google')
+        [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
+      else
+        throw 'provider name is messed up';
+      //todo callback(
+
+      //todo uid(
+      let uid = await getOrSetUid(providerId);
+      //todo uid(
+
+      //todo makeSessionObject(
+      const iat = Date.now();
+      const ttl = state.rm ? SESSION_TTL : '';
+      const sessionObject = {uid, username, provider: state.provider, iat, ttl, providerId, v: 11};
+      const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
+      delete sessionObject.providerId;
+      //todo makeSessionObject(
+
+      const loginText = `<script>window.opener.postMessage('${JSON.stringify(sessionObject)}', 'https://${SESSION_ROOT}'); window.close();</script>`;
+      return new Response(loginText, {
+        status: 200,
+        headers: {
+          'content-type': 'text/html',
+          'Set-Cookie': bakeCookie(SESSION_COOKIE_NAME, sessionSecret, SESSION_ROOT, sessionObject.ttl)
+        }
       });
-    if (data === 'google')
-      return redirect(GOOGLE_OAUTH_LINK, {
-        state,
-        nonce: randomString(12),
-        client_id: GOOGLE_CLIENTID,
-        redirect_uri: GOOGLE_REDIRECT,
-        scope: 'openid email',
-        response_type: 'code',
-      });
-    throw 'Login with correct provider: ' + data;
-    //todo login(
-  }
-
-  if (action === 'callback') {
-    //todo callback(
-    let state;
-    try {
-      const stateSecret = url.searchParams.get('state');
-      const stateTxt = await decryptData(stateSecret, SECRET);
-
-      state = JSON.parse(stateTxt);
-      if (!state && !checkTTL(state.iat, state.ttl))
-        return new Response('Login session timed out.', {status: 401});
-    } catch (err) {
-      throw 'callback without ILLEGAL stateSecret';
     }
-    const code = url.searchParams.get('code');
-    console.log(state.provider, data)
-    let providerId, username;
-    if (state.provider === data && data === 'github')
-      [providerId, username] = 'gi' + await githubProcessTokenPackage(code, state); //userText is the github id nr.
-    else if (state.provider === data && data === 'google')
-      [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
-    else
-      throw 'provider name is messed up';
-    //todo callback(
-
-    //todo uid(
-    let uid = await getOrSetUid(providerId);
-    //todo uid(
-
-    //todo makeSessionObject(
-    const iat = Date.now();
-    const ttl = state.rememberMe ? SESSION_TTL : '';
-    const sessionObject = {uid, username, provider: state.provider, iat, ttl, providerId, v: 8};
-    const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
-    delete sessionObject.providerId;
-    //todo makeSessionObject(
-
-    const loginText = `<script>window.opener.postMessage('${JSON.stringify(sessionObject)}', 'https://${SESSION_ROOT}'); window.close();</script>`;
-    return new Response(loginText, {
-      status: 200,
-      headers: {
-        'content-type': 'text/html',
-        'Set-Cookie': bakeCookie(SESSION_COOKIE_NAME, sessionSecret, SESSION_ROOT, sessionObject.ttl)
-      }
-    });
+    if (action === 'logout') {
+      const logoutText = `<h3>You have logged out.</h3><script>setTimeout(()=>window.open('https://${SESSION_ROOT}'), 3000)</script>`;
+      return new Response(logoutText, {
+        status: 200,
+        headers: {
+          'content-type': 'text/html',
+          'Set-Cookie': bakeCookie(SESSION_COOKIE_NAME, 'LoggingOut', SESSION_ROOT, 0)
+        }
+      });
+    }
+    return new Response('nothing to see', {status: 401});
+  } catch (err) {
+    return new Response(err.message, {status: 401});
   }
-  if (action === 'logout') {
-    const logoutText = `<h3>You have logged out.</h3><script>setTimeout(()=>window.open('https://${SESSION_ROOT}'), 3000)</script>`;
-    return new Response(logoutText, {
-      status: 200,
-      headers: {
-        'content-type': 'text/html',
-        'Set-Cookie': bakeCookie(SESSION_COOKIE_NAME, 'LoggingOut', SESSION_ROOT, 0)
-      }
-    });
-  }
-  return new Response('nothing to see', {status: 401});
 }
 
 addEventListener('fetch', e => e.respondWith(handleRequest(e.request)));
