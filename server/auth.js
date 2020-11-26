@@ -208,6 +208,30 @@ async function login(provider, url) {
   throw 'Login with correct provider: ' + provider;
 }
 
+async function callback(url, provider) {
+  let state;
+  try {
+    const stateSecret = url.searchParams.get('state');
+    const stateTxt = await decryptData(stateSecret, SECRET);
+
+    state = JSON.parse(stateTxt);
+    if (!state && !checkTTL(state.iat, state.ttl))
+      return new Response('Login session timed out.', {status: 401});
+  } catch (err) {
+    throw 'callback without ILLEGAL stateSecret';
+  }
+  const code = url.searchParams.get('code');
+  console.log(state.provider, provider)
+  let providerId, username;
+  if (state.provider === provider && provider === 'github')
+    [providerId, username] = 'gi' + await githubProcessTokenPackage(code, state); //userText is the github id nr.
+  else if (state.provider === provider && provider === 'google')
+    [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
+  else
+    throw 'provider name is messed up';
+  return [providerId, username, state.rm];
+}
+
 async function handleRequest(request) {
   try {
 
@@ -218,37 +242,36 @@ async function handleRequest(request) {
       return await login(data, url);
 
     if (action === 'callback') {
+      const [providerId, username, rm] = await callback(url, data);
       //todo callback(
-      let state;
-      try {
-        const stateSecret = url.searchParams.get('state');
-        const stateTxt = await decryptData(stateSecret, SECRET);
-
-        state = JSON.parse(stateTxt);
-        if (!state && !checkTTL(state.iat, state.ttl))
-          return new Response('Login session timed out.', {status: 401});
-      } catch (err) {
-        throw 'callback without ILLEGAL stateSecret';
-      }
-      const code = url.searchParams.get('code');
-      console.log(state.provider, data)
-      let providerId, username;
-      if (state.provider === data && data === 'github')
-        [providerId, username] = 'gi' + await githubProcessTokenPackage(code, state); //userText is the github id nr.
-      else if (state.provider === data && data === 'google')
-        [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
-      else
-        throw 'provider name is messed up';
+      // let state;
+      // try {
+      //   const stateSecret = url.searchParams.get('state');
+      //   const stateTxt = await decryptData(stateSecret, SECRET);
+      //
+      //   state = JSON.parse(stateTxt);
+      //   if (!state && !checkTTL(state.iat, state.ttl))
+      //     return new Response('Login session timed out.', {status: 401});
+      // } catch (err) {
+      //   throw 'callback without ILLEGAL stateSecret';
+      // }
+      // const code = url.searchParams.get('code');
+      // console.log(state.provider, data)
+      // let providerId, username;
+      // if (state.provider === data && data === 'github')
+      //   [providerId, username] = 'gi' + await githubProcessTokenPackage(code, state); //userText is the github id nr.
+      // else if (state.provider === data && data === 'google')
+      //   [providerId, username] = await googleProcessTokenPackage(code); //the userText is the sub.
+      // else
+      //   throw 'provider name is messed up';
       //todo callback(
 
-      //todo uid(
-      let uid = await getOrSetUid(providerId);
-      //todo uid(
+      const uid = await getOrSetUid(providerId);
 
       //todo makeSessionObject(
       const iat = Date.now();
-      const ttl = state.rm ? SESSION_TTL : '';
-      const sessionObject = {uid, username, provider: state.provider, iat, ttl, providerId, v: 11};
+      const ttl = rm ? SESSION_TTL : '';
+      const sessionObject = {uid, username, provider: data, iat, ttl, providerId, v: 12};
       const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
       delete sessionObject.providerId;
       //todo makeSessionObject(
