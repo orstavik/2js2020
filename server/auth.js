@@ -91,10 +91,14 @@ async function encryptData(data, password) {
 }
 
 async function decryptData(data, password) {
-  const [ivText, cipherB64url] = data.split('.');
-  const iv = hexStringToUint8(ivText);
-  const cipher = atob(fromBase64url(cipherB64url));
-  return await decryptAESGCM(password, iv, cipher);
+  try {
+    const [ivText, cipherB64url] = data.split('.');
+    const iv = hexStringToUint8(ivText);
+    const cipher = atob(fromBase64url(cipherB64url));
+    return await decryptAESGCM(password, iv, cipher);
+  } catch (err) {
+    throw 'error decrypting: ' + data;
+  }
 }
 
 function checkTTL(iat, ttl) {
@@ -182,7 +186,7 @@ async function getOrSetUid(providerId) {
   return newUid;
 }
 
-async function login(provider, stateSecret ) {
+async function login(provider, stateSecret) {
   if (provider === 'github')
     return redirectUrl(GITHUB_OAUTH_LINK, {
       state: stateSecret,
@@ -199,20 +203,13 @@ async function login(provider, stateSecret ) {
       scope: 'openid email',
       response_type: 'code',
     });
-  throw 'Incorrect provider: ' + provider;
+  throw 'login error: incorrect provider: ' + provider;
 }
 
 async function callback(stateSecret, code, provider) {
-  let state;
-  try {
-    const stateTxt = await decryptData(stateSecret, SECRET);
-
-    state = JSON.parse(stateTxt);
-    if (!state && !checkTTL(state.iat, state.ttl))
-      return new Response('Login session timed out.', {status: 401});
-  } catch (err) {
-    throw 'callback without ILLEGAL stateSecret';
-  }
+  let state = JSON.parse(await decryptData(stateSecret, SECRET));
+  if (!checkTTL(state.iat, state.ttl))
+    return new Response('Login session timed out.', {status: 401});
   console.log(state.provider, provider)
   let providerId, username;
   if (state.provider === provider && provider === 'github')
@@ -229,7 +226,7 @@ async function handleRequest(request) {
     const url = new URL(request.url);
     const [ignore, action, provider] = url.pathname.split('/');
 
-    if (action === 'login'){
+    if (action === 'login') {
       const stateSecret = await encryptData(JSON.stringify({
         iat: Date.now(),
         ttl: STATE_PARAM_TTL,
@@ -246,7 +243,7 @@ async function handleRequest(request) {
       const uid = await getOrSetUid(providerId);
       const iat = Date.now();
       const ttl = rm === '' ? '' : SESSION_TTL;
-      const sessionObject = {uid, username, provider, iat, ttl, providerId, v: 21};
+      const sessionObject = {uid, username, provider, iat, ttl, providerId, v: 23};
       const sessionSecret = await encryptData(JSON.stringify(sessionObject), SECRET);
       delete sessionObject.providerId;
 
