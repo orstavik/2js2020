@@ -16,10 +16,10 @@ template.innerHTML = `
       display: block;
       border: 2px solid orangered;
     }
-    #userData[active] > #login {
+    :host([active]) > #login {
       display: none;
     }
-    #userData[active] > #logout {
+    :host([active]) > #logout {
       display: block;
     }
   </style>
