@@ -3,7 +3,7 @@ function mimeType(path){
   const filetype = path.substr(path.lastIndexOf('.')+1);
   return {
     'html': 'text/html',
-    'js': 'application/js',
+    'js': 'text/javascript',
     'css': 'text/css'
   }[filetype];
 }
