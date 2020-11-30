@@ -13,7 +13,7 @@ function popupParameters(width = 600, height = 600) {
     Object.entries({width, height, left, top}).map(kv => kv.join('=')).join(',');
 }
 
-class aPopup extends HTMLElement {
+export class aPopup extends HTMLElement {
 
   static get observedAttributes() {
     return ['href', 'href2'];
