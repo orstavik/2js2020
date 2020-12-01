@@ -40,7 +40,7 @@ export class UserFiles extends HTMLElement {
   async newText(e) {
     if (e.defaultPrevented)
       return;
-    const fileName = this.shadowRoot.querySelector('filename').value;
+    const fileName = this.shadowRoot.querySelector('#filename').value;
     const result = await fetch([this.db, 'WRITE', this.user, fileName].join('/'), {
       method: 'POST',
       body: JSON.stringify([{op: 'NEW', data: 'hello sunshine'}])
