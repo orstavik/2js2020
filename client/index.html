@@ -10,12 +10,13 @@
 
 <h4>hello sunshine</h4>
 <user-data></user-data>
-<user-files></user-files>
+<user-files db="https://db.2js.no"></user-files>
 
 <script>
   window.addEventListener('message', function (e) {
     if (e.origin === 'https://auth.2js.no') {    //todo do we need e.source !== loginWindow
       const userData = JSON.parse(e.data);
+      document.querySelector('user-files').setAttribute('user', userData.uid); //update the user web comp
       document.querySelector('user-data').setUserData(userData); //update the user web comp
       !e.data && (location = location.href); //if it is logout, then reload
     }
