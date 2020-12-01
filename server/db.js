@@ -1,4 +1,4 @@
-
+//SESSION_ROOT
 //SESSION_COOKIE_NAME
 //SECRET
 //KV_MAIN
@@ -53,6 +53,7 @@ function checkTTL(iat, ttl) {
   const notAFutureDream = iat < now;
   return stillTimeToLive && notAFutureDream;
 }
+
 // pure functions end
 
 const GET = {
@@ -91,7 +92,7 @@ const POST_AUTH = {
 }
 
 const GET_AUTH = {
-  SESSION: async function SESSION(sessionObj){
+  SESSION: async function SESSION(sessionObj) {
     return sessionObj;
   }
 }
@@ -109,36 +110,43 @@ async function decryptSession(cookie) {
  * POST /WRITE/uid/filename
  *      JSON =
  [
-   {"op": "op1", "point2": "it/test.html/160000000", "data": "some data"},
-   {"op": "op2", "point2": "it/test.html/160000000", "data": "hello"},
-   {"op": "op1", "point2": "it/test.html/159191919", "data": "simi diti"}
+ {"op": "op1", "point2": "it/test.html/160000000", "data": "some data"},
+ {"op": "op2", "point2": "it/test.html/160000000", "data": "hello"},
+ {"op": "op1", "point2": "it/test.html/159191919", "data": "simi diti"}
  ]
  */
 async function handleRequest(req) {
-  try{
+  try {
 
-  const url = new URL(req.url);
-  const [ignore, action, wantedUID, filename] = url.pathname.split('/');
-  const getAction = GET[action];
-  if (getAction)
-    return new Response(JSON.stringify(getAction(wantedUID, filename)), {status: 200});
+    const url = new URL(req.url);
+    const [ignore, action, wantedUID, filename] = url.pathname.split('/');
+    const getAction = GET[action];
+    if (getAction)
+      return new Response(JSON.stringify(getAction(wantedUID, filename)), {status: 200});
 
-  const sessionObj = await decryptSession(getCookieValue(req.headers.get('cookie'), SESSION_COOKIE_NAME), wantedUID);
+    const sessionObj = await decryptSession(getCookieValue(req.headers.get('cookie'), SESSION_COOKIE_NAME), wantedUID);
 
-  const getAuthAction = GET_AUTH[action];
-  if (getAuthAction)
-    return new Response(JSON.stringify(getAuthAction(sessionObj)), {status: 200});
+    const getAuthAction = GET_AUTH[action];
+    if (getAuthAction)
+      return new Response(JSON.stringify(getAuthAction(sessionObj)), {status: 200});
 
-  const postAction = POST_AUTH[action] ;
-  if (!postAction)
-    return new Response('Unknown action: ' + action, {status: 401});
+    const postAction = POST_AUTH[action];
+    if (!postAction)
+      throw 'Unknown action: ' + action;
 
-  if (sessionObj.uid !== wantedUID)
-    return new Response('Invalid uid: ' + wantedUID, {status: 401});
+    if (sessionObj.uid !== wantedUID)
+      throw 'Invalid uid: ' + wantedUID;
 
-  return new Response(JSON.stringify(postAction(await req.json(), sessionObj, wantedUID, filename)), {status: 200});
-  }catch(err){
-    return new Response(err.message, {status: 401});
+    return new Response(JSON.stringify(postAction(await req.json(), sessionObj, wantedUID, filename)), {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        // 'Access-Control-Allow-Origin': SESSION_ROOT,
+        'x-ivar': 'hello sunshine'
+      }
+    });
+  } catch (err) {
+    return new Response(err.message, {status: 401, headers: {'x-ivar': 'hello sunshine2'}});
   }
 }
 

@@ -56,7 +56,7 @@ export class UserFiles extends HTMLElement {
   }
 
   async loadTexts(e) {
-    const resp = await fetch([this.db, 'FILES', this.user].join('/'));
+    const resp = await fetch([this.db, 'FILES', this.user].join('/'), {mode: 'no-cors'});
     const files = await resp.json();
     this.addTexts(files);
   }

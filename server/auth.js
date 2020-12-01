@@ -208,7 +208,7 @@ async function login(provider, stateSecret) {
   throw 'login error: incorrect provider: ' + provider;
 }
 
-async function processCallback(state, code, provider) {
+async function processCallback(provider, code, state) {
   if (provider === 'github')
     return await githubProcessTokenPackage(code, state);
   if (provider === 'google')
@@ -249,7 +249,7 @@ async function handleRequest(request) {
 
       //2. process callback using code and state
       const code = url.searchParams.get('code');
-      const [providerId, username] = await processCallback(stateSecret, code, provider);
+      const [providerId, username] = await processCallback(provider, code, stateSecret);
 
       //3. get the uid for the providerId
       const uid = await getOrSetUid(providerId);
