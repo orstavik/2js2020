@@ -1,17 +1,22 @@
+<link rel="stylesheet" href="style.css">
+
 <script type="module">
   import {UserData} from "./wc-app/UserData.js";
+  import {UserFiles} from "./wc-app/UserFiles.js";
 
   customElements.define('user-data', UserData);
+  customElements.define('user-files', UserFiles);
 </script>
 
-<h1>hello sunshine worker</h1>
-
+<h4>hello sunshine</h4>
 <user-data></user-data>
+<user-files></user-files>
 
 <script>
   window.addEventListener('message', function (e) {
     if (e.origin === 'https://auth.2js.no') {    //todo do we need e.source !== loginWindow
-      document.querySelector('user-data').setUserData(e.data); //update the user web comp
+      const userData = JSON.parse(e.data);
+      document.querySelector('user-data').setUserData(userData); //update the user web comp
       !e.data && (location = location.href); //if it is logout, then reload
     }
   });

@@ -45,7 +45,7 @@ export class UserData extends HTMLElement {
   }
 
   setUserData(data) {
-    this.shadowRoot.querySelector('pre').innerText = data;
+    this.shadowRoot.querySelector('pre').innerText = JSON.stringify(data);
     data ? this.setAttribute('active', 'loggedIn') : this.removeAttribute('active');
   }
 }
