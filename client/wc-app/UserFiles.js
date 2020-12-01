@@ -43,6 +43,7 @@ export class UserFiles extends HTMLElement {
     const fileName = this.shadowRoot.querySelector('#filename').value;
     const result = await fetch([this.db, 'WRITE', this.user, fileName].join('/'), {
       method: 'POST',
+      mode: 'no-cors',
       body: JSON.stringify([{op: 'NEW', data: 'hello sunshine'}])
     });
     if (result.status === 200) {
